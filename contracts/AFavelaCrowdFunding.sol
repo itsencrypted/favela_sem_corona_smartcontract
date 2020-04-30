@@ -52,11 +52,11 @@ contract AFavelaCrowdFunding is Ownable {
 
   using SafeMath for uint;
 
-  address _daiAddress = 0xFf795577d9AC8bD7D90Ee22b6C1703490b6512FD;
-  address _aDaiAddress = 0x58AD4cB396411B691A9AAb6F74545b2C5217FE6a;
-  address KYBER_INTERFACE = 0xF77eC7Ed5f5B9a5aee4cfa6FFCaC6A4C315BaC76;
+  address _daiAddress = 0xf80A32A835F79D7787E8a8ee5721D0fEaFd78108;
+  address _aDaiAddress = 0xcB1Fe6F440c49E9290c3eb7f158534c2dC374201;
+  address KYBER_INTERFACE = 0x818E6FECD516Ecc3849DAf6845e3EC868087B755;
   address EtherAddress = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-  address _lendingPoolProviderAddress = 0x24a42fD28C976A61Df5D00D0599C34c4f90748c8;
+  address _lendingPoolProviderAddress = 0x1c8756FD2B28e9426CDBDcC7E3c4d64fa9A54728;
 
   uint public totalETHDonation;
 
@@ -111,13 +111,11 @@ contract AFavelaCrowdFunding is Ownable {
 
       LendingPoolAddressesProvider provider = LendingPoolAddressesProvider(_lendingPoolProviderAddress); // mainnet address, for other addresses: https://docs.aave.com/developers/developing-on-aave/deployed-contract-instances
       LendingPool lendingPool = LendingPool(provider.getLendingPool());
-
+      
       dai.approve(provider.getLendingPoolCore(), amount);
       lendingPool.deposit(_daiAddress, amount, 0);
       
       sessionaDAIBalance = aDai.balanceOf(address(this));
-
-      emit ETHInvested(msg.sender, amount);
   }
 
   function setDistributionAmount(uint favelaUsersLength) public onlyOwner returns (uint) {
@@ -142,3 +140,4 @@ contract AFavelaCrowdFunding is Ownable {
       }
   }
 }
+

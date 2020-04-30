@@ -17,6 +17,14 @@ interface CErc20 {
     function repayBorrow(uint256) external returns (uint256);
     function balanceOf(address) external view returns (uint256);
     function transfer(address, uint256) external returns (bool);
+    function approve(address, uint256) external returns (bool);
+}
+
+interface CEth {
+    function mint() external payable;
+    function borrow(uint256) external returns (uint256);
+    function repayBorrow() external payable;
+    function borrowBalanceCurrent(address) external returns (uint256);
 }
 
 interface KyberNetworkProxyInterface {
@@ -30,6 +38,19 @@ interface KyberNetworkProxyInterface {
     function swapTokenToEther(Erc20 token, uint tokenQty, uint minRate) external returns (uint);
 }
 
+interface Comptroller {
+    function markets(address) external returns (bool, uint256);
+
+    function enterMarkets(address[] calldata)
+        external
+        returns (uint256[] memory);
+
+    function getAccountLiquidity(address)
+        external
+        view
+        returns (uint256, uint256, uint256);
+}
+
 contract CFavelaCrowdFunding is Ownable {
 
   event DonationReceived(address sender, uint amount, uint totalBalance);
@@ -40,10 +61,12 @@ contract CFavelaCrowdFunding is Ownable {
 
   using SafeMath for uint;
 
-  address _cdaiAddress = 0x6D7F0754FFeb405d23C51CE938289d4835bE3b14;
-  address _daiAddress = 0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa;
-  address KYBER_INTERFACE = 0xF77eC7Ed5f5B9a5aee4cfa6FFCaC6A4C315BaC76;
+  address _cdaiAddress = 0xe7bc397DBd069fC7d0109C0636d06888bb50668c;
+  address _daiAddress = 0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa;
+  address KYBER_INTERFACE = 0x692f391bCc85cefCe8C237C01e1f636BbD70EA4D;
   address EtherAddress = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+  address cethAddress = 0xf92FbE0D3C0dcDAE407923b2Ac17eC223b1084E4;
+  address comptrollerAddress = 0x1f5D7F3CaAC149fE41b8bd62A3673FE6eC0AB73b;
 
   uint public totalETHDonation;
 
@@ -69,25 +92,56 @@ contract CFavelaCrowdFunding is Ownable {
   }
 
   // Invest ETH to given protocol
-  function investETHtoCompound(uint amount) public onlyOwner returns(uint) {
-      require(amount > 0, 'Amount Invalid');
-      require(amount < address(this).balance, 'Contract Wallet doesnt have enough ETH balance');
+  function investETHtoCompound(uint ethForCollateral) public onlyOwner {
+      require(ethForCollateral > 0, 'Amount Invalid');
+      require(ethForCollateral < address(this).balance, 'Contract Wallet doesnt have enough ETH balance');
       
-      uint daiAmount = ethToDai(amount);
+      //uint daiAmount = ethToDai(amount);
+      
+      CEth cEth = CEth(cethAddress);
+      //Erc20 dai = Erc20(_daiAddress);
+      
+      cEth.mint.value(ethForCollateral)();
+      
+      emit ETHInvested(msg.sender, ethForCollateral);
+  }
+  
+  function borrowCDAI(uint daiAmount) public onlyOwner {
+      address[] memory cTokens = new address[](1);
+      cTokens[0] = _cdaiAddress;
+      
+      
+      CErc20 cDai = CErc20(_cdaiAddress);
+      Comptroller comptroller = Comptroller(comptrollerAddress);
+      uint256[] memory errors = comptroller.enterMarkets(cTokens);
+
+      if (errors[0] != 0) {
+            revert("Comptroller.enterMarkets failed.");
+      }
+      
+      uint success = cDai.borrow(daiAmount);
+      require(success == 0, "Borrow failed");
       
       Erc20 dai = Erc20(_daiAddress);
-      CErc20 cDai = CErc20(_cdaiAddress);
-
       dai.approve(_cdaiAddress, daiAmount);
-      uint error = cDai.mint(daiAmount);
       
+      uint error = cDai.mint(daiAmount);
       sessioncDAIBalance = cDai.balanceOf(address(this));
-
+      
       require(error == 0, "CErc20.mint Error... Try Again");
-      emit ETHInvested(msg.sender, amount);
-
-      return error;
+      emit DAIInvested(msg.sender, daiAmount);
   }
+
+  function myEthRepayBorrow(uint256 amount)
+        public
+        returns (bool)
+    {
+        CErc20 cDai = CErc20(_cdaiAddress);
+
+        cDai.approve(_cdaiAddress,amount);
+        cDai.repayBorrow(amount);
+        return true;
+    }
 
   function investDAItoCompound(uint amount) public onlyOwner returns(uint) {
       require(amount > 0, "Amount Invalid");
